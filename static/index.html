@@ -1,0 +1,2207 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Airgap Web Copilot — Hybrid WebGPU & Local Ollama</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #0a0d14;
+      --bg-surface: #111726;
+      --bg-surface-elevated: #182238;
+      --bg-surface-subtle: rgba(24, 34, 56, 0.6);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(99, 102, 241, 0.6);
+
+      --accent-primary: #6366f1;
+      --accent-primary-hover: #4f46e5;
+      --accent-glow: rgba(99, 102, 241, 0.25);
+
+      --color-webgpu: #10b981;
+      --color-webgpu-glow: rgba(16, 185, 129, 0.2);
+      --color-ollama: #f59e0b;
+      --color-ollama-glow: rgba(245, 158, 11, 0.2);
+
+      --text-primary: #f3f4f6;
+      --text-secondary: #9ca3af;
+      --text-muted: #6b7280;
+
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-full: 9999px;
+
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: radial-gradient(circle at 50% 0%, #172036 0%, var(--bg-base) 70%);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Top Navigation Bar */
+    header {
+      background: rgba(17, 23, 38, 0.8);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      padding: 12px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .brand-section {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, #6366f1, #10b981);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 16px var(--accent-glow);
+    }
+
+    .brand-logo svg {
+      width: 22px;
+      height: 22px;
+      fill: white;
+    }
+
+    .brand-text h1 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(to right, #ffffff, #cbd5e1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-text span {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    /* Engine Selector */
+    .engine-selector-group {
+      display: flex;
+      align-items: center;
+      background: var(--bg-surface-elevated);
+      padding: 4px;
+      border-radius: var(--radius-full);
+      border: 1px solid var(--border-color);
+      gap: 4px;
+    }
+
+    .engine-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-family: var(--font-sans);
+      font-size: 0.78rem;
+      font-weight: 500;
+      padding: 6px 14px;
+      border-radius: var(--radius-full);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .engine-btn.active {
+      background: var(--accent-primary);
+      color: white;
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    .engine-btn[data-mode="webgpu"].active {
+      background: var(--color-webgpu);
+      box-shadow: 0 0 12px var(--color-webgpu-glow);
+    }
+
+    .engine-btn[data-mode="ollama"].active {
+      background: var(--color-ollama);
+      box-shadow: 0 0 12px var(--color-ollama-glow);
+    }
+
+    /* Status Badges */
+    .status-badges {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: var(--radius-full);
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: 1px solid var(--border-color);
+      background: var(--bg-surface-elevated);
+    }
+
+    .badge-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+    }
+
+    .badge-webgpu .badge-dot {
+      background: var(--color-webgpu);
+      box-shadow: 0 0 8px var(--color-webgpu);
+    }
+
+    .badge-ollama .badge-dot {
+      background: var(--color-ollama);
+      box-shadow: 0 0 8px var(--color-ollama);
+    }
+
+    .badge-dot.inactive {
+      background: #ef4444;
+      box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+    }
+
+    /* Progress Banner for Model Download */
+    #modelProgressContainer {
+      display: none;
+      position: sticky;
+      top: 65px;
+      z-index: 100;
+      background: rgba(17, 23, 38, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(16, 185, 129, 0.3);
+      padding: 12px 24px;
+      font-size: 0.8rem;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    .progress-content {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .progress-bar-bg {
+      flex: 1;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #10b981, #6366f1);
+      transition: width 0.3s ease;
+      border-radius: var(--radius-full);
+    }
+
+    /* Main Workspace Layout */
+    .workspace-grid {
+      display: grid;
+      grid-template-columns: 460px 1fr;
+      flex: 1;
+      max-width: 1600px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 20px;
+      gap: 20px;
+    }
+
+    /* Left Sidebar: Document Ingestion */
+    .sidebar-panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .panel-header h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-header span {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .tab-bar {
+      display: flex;
+      background: rgba(0, 0, 0, 0.2);
+      border-bottom: 1px solid var(--border-color);
+      padding: 4px 8px;
+      gap: 6px;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-family: var(--font-sans);
+      font-size: 0.8rem;
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: var(--bg-surface-elevated);
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    .tab-content {
+      padding: 16px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+
+    /* Preset Sample Articles Chips */
+    .sample-chips {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .sample-chip {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.2s;
+    }
+
+    .sample-chip:hover {
+      border-color: var(--accent-primary);
+      background: rgba(99, 102, 241, 0.08);
+      transform: translateY(-1px);
+    }
+
+    .sample-chip h4 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .sample-chip p {
+      font-size: 0.74rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    textarea.code-input {
+      width: 100%;
+      flex: 1;
+      min-height: 220px;
+      background: #0d121f;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      color: #e2e8f0;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      padding: 12px;
+      resize: none;
+      outline: none;
+      transition: border-color 0.2s;
+      line-height: 1.5;
+    }
+
+    textarea.code-input:focus {
+      border-color: var(--border-focus);
+    }
+
+    .action-btn {
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-primary-hover));
+      color: white;
+      border: none;
+      border-radius: var(--radius-sm);
+      padding: 10px 16px;
+      font-family: var(--font-sans);
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+      box-shadow: 0 2px 10px var(--accent-glow);
+    }
+
+    .action-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px var(--accent-glow);
+    }
+
+    .action-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Inspection Metrics Drawer */
+    .extraction-meta {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 10px 14px;
+      font-size: 0.75rem;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .meta-item span.label {
+      color: var(--text-muted);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+    }
+
+    .meta-item span.value {
+      color: var(--text-primary);
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+
+    /* Right Main Panel: Copilot Chat & Reasoning */
+    .chat-panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .message-row {
+      display: flex;
+      gap: 14px;
+      max-width: 900px;
+    }
+
+    .message-row.user {
+      align-self: flex-end;
+      flex-direction: row-reverse;
+    }
+
+    .message-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .message-avatar.assistant {
+      background: linear-gradient(135deg, #4f46e5, #10b981);
+      color: white;
+    }
+
+    .message-avatar.user {
+      background: var(--bg-surface-elevated);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+    }
+
+    .message-body {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-width: calc(100% - 50px);
+    }
+
+    .message-meta {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .message-meta .engine-tag {
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      font-size: 0.68rem;
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+
+    .engine-tag.webgpu {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .engine-tag.ollama {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .telemetry-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--border-color);
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--text-secondary);
+    }
+
+    .telemetry-tag .metric-highlight {
+      color: #60a5fa;
+      font-weight: 600;
+    }
+
+    .message-bubble {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+      font-size: 0.88rem;
+      line-height: 1.6;
+      color: var(--text-primary);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .message-row.user .message-bubble {
+      background: linear-gradient(135deg, #3730a3, #4338ca);
+      border-color: rgba(99, 102, 241, 0.4);
+      color: white;
+    }
+
+    /* Grounded Context Citation Cards */
+    .citations-container {
+      margin-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 10px;
+    }
+
+    .citations-header {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      padding: 4px 0;
+      user-select: none;
+      transition: color 0.2s ease;
+    }
+
+    .citations-header:hover {
+      color: var(--text-primary);
+    }
+
+    .citation-toggle-icon {
+      font-size: 0.65rem;
+      transition: transform 0.2s ease;
+      opacity: 0.7;
+    }
+
+    .citation-cards {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .citation-card {
+      background: rgba(0, 0, 0, 0.25);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      line-height: 1.4;
+      color: #cbd5e1;
+    }
+
+    .citation-card-header {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+      color: var(--text-muted);
+      font-size: 0.68rem;
+    }
+
+    .score-badge {
+      color: #34d399;
+      font-weight: 600;
+    }
+
+    /* Typing Cursor */
+    .typing-cursor::after {
+      content: '▋';
+      display: inline-block;
+      vertical-align: middle;
+      color: var(--accent-primary);
+      animation: blink 0.9s infinite;
+    }
+
+    @keyframes blink {
+
+      0%,
+      100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0;
+      }
+    }
+
+    /* Agentic Mesh / LLM-as-a-Judge Verification Badge & Drawer */
+    .verification-container {
+      margin-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 8px;
+    }
+
+    .verification-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 12px;
+      border-radius: var(--radius-full);
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      font-weight: 500;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      backdrop-filter: blur(8px);
+    }
+
+    .verification-tag:hover {
+      filter: brightness(1.15);
+      transform: translateY(-1px);
+    }
+
+    .verification-tag.evaluating {
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      color: #a5b4fc;
+      animation: meshPulse 2s infinite ease-in-out;
+    }
+
+    .verification-tag.verified {
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #34d399;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.15);
+    }
+
+    .verification-tag.flagged {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #f87171;
+      box-shadow: 0 0 12px rgba(239, 68, 68, 0.15);
+    }
+
+    .verification-tag.inconclusive {
+      background: rgba(156, 163, 175, 0.1);
+      border: 1px solid rgba(156, 163, 175, 0.2);
+      color: #9ca3af;
+    }
+
+    .verification-toggle-icon {
+      font-size: 0.65rem;
+      transition: transform 0.2s ease;
+      opacity: 0.7;
+      margin-left: 2px;
+    }
+
+    .verification-details {
+      margin-top: 8px;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      animation: fadeIn 0.2s ease-out;
+    }
+
+    .verification-verdict {
+      color: var(--text-primary);
+      font-size: 0.8rem;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .claims-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .claim-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      line-height: 1.4;
+    }
+
+    .claim-item.supported {
+      color: #a7f3d0;
+    }
+
+    .claim-item.unsupported {
+      color: #fca5a5;
+    }
+
+    .claim-badge {
+      font-size: 0.68rem;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .claim-badge.supported {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .claim-badge.unsupported {
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    @keyframes meshPulse {
+      0%, 100% {
+        box-shadow: 0 0 4px rgba(99, 102, 241, 0.2);
+        border-color: rgba(99, 102, 241, 0.3);
+      }
+      50% {
+        box-shadow: 0 0 14px rgba(99, 102, 241, 0.45);
+        border-color: rgba(99, 102, 241, 0.65);
+      }
+    }
+
+    .spinner {
+      display: inline-block;
+      animation: spin 1.2s linear infinite;
+    }
+
+    @keyframes spin {
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Chat Input Bar */
+    .chat-input-area {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border-color);
+      background: rgba(17, 23, 38, 0.7);
+      backdrop-filter: blur(8px);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .quick-prompts {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+
+    .quick-chip {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      border-radius: var(--radius-full);
+      padding: 4px 12px;
+      font-size: 0.74rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+
+    .quick-chip:hover {
+      border-color: var(--accent-primary);
+      color: var(--text-primary);
+    }
+
+    .input-wrapper {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .chat-input {
+      flex: 1;
+      background: #0d121f;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      color: white;
+      font-family: var(--font-sans);
+      font-size: 0.88rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .chat-input:focus {
+      border-color: var(--border-focus);
+    }
+
+    .send-btn {
+      width: 44px;
+      height: 44px;
+      background: var(--accent-primary);
+      border: none;
+      border-radius: var(--radius-md);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      flex-shrink: 0;
+    }
+
+    .send-btn:hover {
+      background: var(--accent-primary-hover);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    .send-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Responsive */
+    @media (max-width: 980px) {
+      .workspace-grid {
+        grid-template-columns: 1fr;
+      }
+
+    /* Ollama Setup Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(10, 13, 20, 0.8);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .modal-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      max-width: 620px;
+      width: 100%;
+      padding: 24px;
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+    }
+
+    .modal-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.4rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px;
+      border-radius: 4px;
+    }
+
+    .modal-close:hover {
+      color: var(--text-primary);
+    }
+
+    .setup-step {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .setup-step-title {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--color-ollama);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .setup-code {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 8px 12px;
+    .model-select-dropdown {
+      background: transparent;
+      border: none;
+      color: #e9d5ff;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      outline: none;
+      padding: 0 4px;
+    }
+
+    .model-select-dropdown option {
+      background: #111726;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Top Navigation Header -->
+  <header>
+    <div class="brand-section">
+      <div class="brand-logo">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+        </svg>
+      </div>
+      <div class="brand-text">
+        <h1>Airgap Web Copilot</h1>
+        <span>Hybrid WebGPU + Local Ollama</span>
+      </div>
+    </div>
+
+    <!-- Engine Selector & Hardware Detection -->
+    <div class="header-controls">
+      <div class="engine-selector-group">
+        <button class="engine-btn active" data-mode="auto" id="btnModeAuto"
+          title="Automatically prefers WebGPU if supported, falls back to Ollama">
+          ⚡ Auto (WebGPU 1st)
+        </button>
+        <button class="engine-btn" data-mode="webgpu" id="btnModeWebGPU" title="Forces in-browser WebLLM inference">
+          🌐 Force WebGPU
+        </button>
+        <button class="engine-btn" data-mode="ollama" id="btnModeOllama"
+          title="Forces local FastAPI + Ollama inference">
+          🦙 Force Ollama
+        </button>
+      </div>
+
+      <button class="engine-btn" id="btnQuickSample" onclick="loadSampleArticle('privacy')"
+        title="Instantly load and index sample article with 1 click"
+        style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); color: #34d399; font-weight: 600;">
+        ⚡ Load Sample Article
+      </button>
+
+      <div class="status-badges">
+        <div class="badge badge-webgpu" id="badgeWebGPU" title="Checking WebGPU status...">
+          <span class="badge-dot" id="dotWebGPU"></span>
+          <span id="textWebGPU">Detecting GPU...</span>
+        </div>
+        <div class="badge badge-model" id="badgeModel" title="Select in-browser WebLLM model" style="border-color: rgba(168, 85, 247, 0.4); background: rgba(168, 85, 247, 0.12); padding-right: 8px;">
+          <span class="badge-dot" id="dotModel" style="background: #c084fc; box-shadow: 0 0 8px rgba(192, 132, 252, 0.6);"></span>
+          <span style="color: #c084fc; font-weight: 600; font-size: 0.72rem; margin-right: 2px;">WebLLM:</span>
+          <select id="webllmModelSelect" class="model-select-dropdown" title="Choose in-browser model (changes take effect on next query)">
+            <option value="gemma-2-2b-it-q4f16_1-MLC">Gemma 2 (2B)</option>
+            <option value="Qwen2.5-1.5B-Instruct-q4f16_1-MLC">Qwen 2.5 (1.5B)</option>
+            <option value="Qwen2.5-0.5B-Instruct-q4f16_1-MLC">Qwen 2.5 (0.5B)</option>
+            <option value="Llama-3.2-1B-Instruct-q4f16_1-MLC">Llama 3.2 (1B)</option>
+            <option value="Llama-3.2-3B-Instruct-q4f16_1-MLC">Llama 3.2 (3B)</option>
+            <option value="Phi-3.5-mini-instruct-q4f16_1-MLC">Phi-3.5 Mini (3.8B)</option>
+            <option value="SmolLM2-1.7B-Instruct-q4f16_1-MLC">SmolLM2 (1.7B)</option>
+          </select>
+        </div>
+        <div class="badge badge-ollama" id="badgeOllama" onclick="openOllamaModal()" title="Local Ollama: Click to view install & run guide" style="cursor: pointer;">
+          <span class="badge-dot" id="dotOllama"></span>
+          <span id="textOllama">Ollama: Checking...</span>
+        </div>
+        <div class="badge badge-mesh" id="badgeMesh" title="Agentic Mesh: Real-time LLM-as-a-Judge factual grounding and hallucination auditing" style="border-color: rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.12);">
+          <span class="badge-dot" id="dotMesh" style="background: #818cf8; box-shadow: 0 0 8px rgba(129, 140, 248, 0.6);"></span>
+          <span id="textMesh" style="color: #a5b4fc; font-weight: 600; font-size: 0.72rem;">Mesh Judge: Active</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- WebLLM Model Download Progress Banner -->
+  <div id="modelProgressContainer">
+    <div class="progress-content">
+      <span id="progressStatusText" style="font-weight: 500; min-width: 260px;">Initializing WebLLM Engine...</span>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progressBarFill"></div>
+      </div>
+      <span id="progressPercent" style="font-family: var(--font-mono); font-weight: 600;">0%</span>
+    </div>
+  </div>
+
+  <!-- Workspace Grid -->
+  <main class="workspace-grid">
+
+    <!-- Left Sidebar: Document Ingestion & Extraction -->
+    <section class="sidebar-panel">
+      <div class="panel-header">
+        <h2>📄 Document Ingestion</h2>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <button class="engine-btn" onclick="loadSampleArticle('privacy')"
+            title="Instantly load and index sample article with 1 click"
+            style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); color: #34d399; padding: 4px 10px; font-size: 0.72rem; font-weight: 600;">
+            ⚡ Load Sample Article
+          </button>
+          <span id="docStatusBadge">Ready to Ingest</span>
+        </div>
+      </div>
+
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="samples" id="tabSamples">Sample Articles</button>
+        <button class="tab-btn" data-tab="url" id="tabUrl">🌐 Live URL</button>
+        <button class="tab-btn" data-tab="file" id="tabFile">📁 Upload File</button>
+        <button class="tab-btn" data-tab="html" id="tabHtml">Raw HTML Paste</button>
+        <button class="tab-btn" data-tab="preview" id="tabPreview">Extracted Text</button>
+      </div>
+
+      <!-- Tab Content: Samples -->
+      <div class="tab-content" id="contentSamples">
+        <p style="font-size: 0.78rem; color: var(--text-muted);">
+          Select a sample web document to immediately test HTML readability parsing, FAISS vector chunking, and grounded
+          Q&A:
+        </p>
+        <div class="sample-chips">
+          <div class="sample-chip" onclick="loadSampleArticle('privacy')">
+            <h4>🔐 Air-Gapped Web Copilot Architecture</h4>
+            <p>Analysis of local sentence embeddings, in-memory FAISS indexing, and WebGPU in-browser inference.</p>
+          </div>
+          <div class="sample-chip" onclick="loadSampleArticle('webgpu')">
+            <h4>⚡ WebGPU vs Cloud APIs for LLMs</h4>
+            <p>Evaluating memory bandwidth, shader pipelines, and zero-egress data sovereignty on personal hardware.</p>
+          </div>
+          <div class="sample-chip" onclick="loadSampleArticle('trafilatura')">
+            <h4>🧹 Trafilatura: High Precision HTML Cleaning</h4>
+            <p>Eliminating boilerplate, navigational noise, and tracking scripts to preserve clean LLM context.</p>
+          </div>
+        </div>
+
+        <button class="action-btn" id="btnIngestSample" onclick="ingestCurrentContent()">
+          🚀 Extract & Build Context Index
+        </button>
+
+        <div class="extraction-meta" id="extractionMeta" style="display: none;">
+          <div class="meta-item">
+            <span class="label">Extracted Chars</span>
+            <span class="value" id="metaChars">-</span>
+          </div>
+          <div class="meta-item">
+            <span class="label">FAISS Chunks</span>
+            <span class="value" id="metaChunks">-</span>
+          </div>
+          <div class="meta-item">
+            <span class="label">Document Title</span>
+            <span class="value" id="metaTitle"
+              style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">-</span>
+          </div>
+          <div class="meta-item">
+            <span class="label">Context Engine</span>
+            <span class="value" id="metaEngine">Python Local</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Content: Live URL -->
+      <div class="tab-content" id="contentUrl" style="display: none;">
+        <p style="font-size: 0.78rem; color: var(--text-muted);">
+          Point to any public webpage URL. The local Python backend fetches the HTML, cleans noise with Trafilatura, and
+          builds vector chunks:
+        </p>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <input type="url" id="targetUrlInput" class="chat-input" placeholder="https://en.wikipedia.org/wiki/WebGPU"
+            style="width: 100%;" onkeydown="if(event.key==='Enter') ingestTargetUrl()">
+          <button class="action-btn" id="btnIngestUrl" onclick="ingestTargetUrl()">
+            🌐 Fetch & Ingest Webpage
+          </button>
+        </div>
+      </div>
+
+      <!-- Tab Content: Upload File -->
+      <div class="tab-content" id="contentFile" style="display: none;">
+        <p style="font-size: 0.78rem; color: var(--text-muted);">
+          Upload an HTML, Markdown, or text file from your computer. Processed entirely offline:
+        </p>
+        <div class="upload-dropzone" id="dropzone" onclick="document.getElementById('filePickerInput').click()"
+          style="border: 2px dashed var(--border-color); border-radius: var(--radius-md); padding: 28px 16px; text-align: center; cursor: pointer; transition: all 0.2s; background: rgba(0,0,0,0.2);">
+          <input type="file" id="filePickerInput" accept=".html,.htm,.txt,.md,.json,.xml,.log" style="display: none;"
+            onchange="if(this.files[0]) handleUploadedFile(this.files[0])">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            style="margin-bottom: 8px; color: var(--accent-primary);">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          <div style="font-size: 0.85rem; font-weight: 600; color: var(--text-primary);">Click or drag & drop a file
+            here</div>
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 4px;">Supports .html, .htm, .txt, .md,
+            .json, .log</div>
+        </div>
+        <div id="uploadedFileName"
+          style="display: none; font-size: 0.75rem; color: #34d399; font-family: var(--font-mono); margin-top: 6px; word-break: break-all;">
+        </div>
+      </div>
+
+      <!-- Tab Content: Raw HTML -->
+      <div class="tab-content" id="contentHtml" style="display: none;">
+        <textarea class="code-input" id="rawHtmlInput"
+          placeholder="Paste full raw HTML markup (<!DOCTYPE html><html>...) here..."></textarea>
+        <button class="action-btn" onclick="ingestCurrentContent()">
+          🚀 Extract & Build Context Index
+        </button>
+      </div>
+
+      <!-- Tab Content: Preview Extracted -->
+      <div class="tab-content" id="contentPreview" style="display: none;">
+        <textarea class="code-input" id="extractedPreviewText" readonly
+          placeholder="Cleaned text from Trafilatura will appear here..."></textarea>
+      </div>
+    </section>
+
+    <!-- Right Chat Panel: Hybrid Reasoning & Citations -->
+    <section class="chat-panel">
+      <div class="panel-header">
+        <h2>💬 Copilot Reasoning & Q&A</h2>
+        <span id="activeEngineIndicator">Engine: WebGPU (gemma-2-2b-it)</span>
+      </div>
+
+      <!-- Chat History -->
+      <div class="chat-messages" id="chatMessages">
+        <div class="message-row">
+          <div class="message-avatar assistant">AI</div>
+          <div class="message-body">
+            <div class="message-meta">
+              <span>Airgap Web Copilot</span>
+              <span class="engine-tag webgpu">HYBRID READY</span>
+            </div>
+            <div class="message-bubble">
+              Hello! I am your air-gapped web copilot. I operate with <strong>pure offline execution</strong> and zero
+              external cloud LLM calls.
+
+              1. Select or paste a web document on the left.
+              2. Click <strong>"Extract & Build Context Index"</strong>.
+              3. Ask any question. By default, I will generate responses directly in your browser via <strong>WebGPU
+                (WebLLM)</strong> using context retrieved by the local Python FAISS engine, with automatic fallback to
+              local <strong>Ollama</strong>.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chat Input Area -->
+      <div class="chat-input-area">
+        <div class="quick-prompts">
+          <button class="quick-chip" onclick="loadSampleArticle('privacy')"
+            style="border-color: rgba(16, 185, 129, 0.4); color: #34d399; font-weight: 600;">⚡ Load Sample
+            Article</button>
+          <button class="quick-chip"
+            onclick="submitQuickPrompt('Summarize this document in 3 concise bullet points.')">📌 Summarize in 3
+            points</button>
+          <button class="quick-chip"
+            onclick="submitQuickPrompt('What are the key privacy and air-gap guarantees mentioned?')">🔒 Privacy
+            guarantees</button>
+          <button class="quick-chip"
+            onclick="submitQuickPrompt('What technical components make up the architecture?')">⚙️ Technical
+            components</button>
+        </div>
+
+        <div class="input-wrapper">
+          <input type="text" class="chat-input" id="userInput"
+            placeholder="Ask a question about the extracted web document..."
+            onkeydown="if(event.key==='Enter') sendMessage()">
+          <button class="send-btn" id="btnSend" onclick="sendMessage()" title="Submit Query">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- WebLLM CDN & Hybrid Controller Script -->
+  <script type="module">
+    import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+
+    // Application State
+    const state = {
+      engineMode: "auto", // "auto", "webgpu", "ollama"
+      webgpuAvailable: false,
+      gpuAdapterInfo: null,
+      webllmEngine: null,
+      webllmModel: "gemma-2-2b-it-q4f16_1-MLC",
+      webllmLoaded: false,
+      ollamaAvailable: false,
+      currentHtml: "",
+      extractedContext: null,
+      isGenerating: false
+    };
+
+    // Expose to window for DevTools debugging & inspection
+    window.webllm = webllm;
+    window.appState = state;
+
+    // Preloaded Sample Articles
+    const sampleArticles = {
+      privacy: `<!DOCTYPE html><html><head><title>Local AI & Data Sovereignty: Air-Gapped Web Copilot Architecture</title><meta name="author" content="Antigravity Team"><meta name="date" content="2026-09-07"></head><body><header><nav><a href="/">Home</a><a href="/about">About</a><a href="/ads">Ad Networks</a></nav></header><main><h1>Local AI & Data Sovereignty: Air-Gapped Web Copilot Architecture</h1><p class="byline">Published on September 7, 2026 by Antigravity Systems.</p><article><p>Modern web browsing exposes sensitive enterprise intellectual property and personal browsing patterns when users rely on cloud-hosted copilot extensions. The airgap-web-copilot project implements a strict zero-egress architecture that eliminates all outbound telemetry and external LLM API calls.</p><section><h2>Hybrid Architecture Principles</h2><p>The hybrid copilot operates through dual cooperating layers. First, a lightweight local Python service uses Trafilatura to clean messy DOM trees, stripping advertising tags, trackers, and navigation scripts. The purified text is converted into dense vector embeddings using sentence-transformers/all-MiniLM-L6-v2 and stored in an in-memory FAISS index (IndexFlatIP).</p><p>Second, context generation is distributed based on client hardware capability. If WebGPU is supported, the browser loads Qwen2.5-1.5B via WebLLM to run inference directly on local GPU shaders. When WebGPU is absent or restricted, the system routes requests to a local Ollama daemon running llama3.2 on localhost:11434 over Server-Sent Events (SSE).</p></section><section><h2>Security and Air-Gap Compliance</h2><p>All embeddings, index queries, and text transformations remain strictly inside local loopback interfaces (127.0.0.1). No OpenAI, Anthropic, or external cloud inference endpoints are ever contacted, guaranteeing complete regulatory compliance with GDPR and HIPAA air-gap specifications.</p></section></article></main><footer><p>&copy; 2026 Privacy AI Labs. Tracking script dummy.</p></footer></body></html>`,
+      webgpu: `<!DOCTYPE html><html><head><title>WebGPU In-Browser Inference: Architecture & Performance</title></head><body><article><h1>WebGPU In-Browser Inference: Architecture & Performance</h1><p>WebGPU is a low-level graphics and compute API that exposes modern GPU hardware directly to web applications. Unlike WebGL, WebGPU supports general-purpose compute shaders (WGSL), enabling multi-billion parameter language models like Qwen2.5-1.5B to execute entirely in the client sandbox with zero server compute costs.</p><p>Key benefits include ultra-low latency token generation, offline execution without active internet connectivity, and hardware-accelerated matrix multiplication using 4-bit and 16-bit floating point precision.</p></article></body></html>`,
+      trafilatura: `<!DOCTYPE html><html><head><title>Trafilatura: High Precision Web Scraping and Text Cleaning</title></head><body><article><h1>Trafilatura: High Precision Web Scraping and Text Cleaning</h1><p>Trafilatura is a Python library and command-line tool designed to extract main body text and metadata from web pages. Unlike naive regular expressions or general DOM parsers, Trafilatura uses statistical language analysis and structural layout heuristics to filter out boilerplate such as headers, sidebars, cookie banners, and comment sections.</p><p>This produces high signal-to-noise text perfectly optimized for embedding pipelines and RAG vector chunking.</p></article></body></html>`
+    };
+
+    // UI Elements
+    const btnModeAuto = document.getElementById("btnModeAuto");
+    const btnModeWebGPU = document.getElementById("btnModeWebGPU");
+    const btnModeOllama = document.getElementById("btnModeOllama");
+    const badgeWebGPU = document.getElementById("badgeWebGPU");
+    const dotWebGPU = document.getElementById("dotWebGPU");
+    const textWebGPU = document.getElementById("textWebGPU");
+    const dotOllama = document.getElementById("dotOllama");
+    const textOllama = document.getElementById("textOllama");
+    const modelProgressContainer = document.getElementById("modelProgressContainer");
+    const progressBarFill = document.getElementById("progressBarFill");
+    const progressPercent = document.getElementById("progressPercent");
+    const progressStatusText = document.getElementById("progressStatusText");
+    const activeEngineIndicator = document.getElementById("activeEngineIndicator");
+    const rawHtmlInput = document.getElementById("rawHtmlInput");
+    const extractedPreviewText = document.getElementById("extractedPreviewText");
+    const extractionMeta = document.getElementById("extractionMeta");
+    const metaChars = document.getElementById("metaChars");
+    const metaChunks = document.getElementById("metaChunks");
+    const metaTitle = document.getElementById("metaTitle");
+    const chatMessages = document.getElementById("chatMessages");
+    const userInput = document.getElementById("userInput");
+    const btnSend = document.getElementById("btnSend");
+
+    // Initialize Default State
+    state.currentHtml = "";
+    rawHtmlInput.value = "";
+
+    // 1. Hardware WebGPU Detection
+    async function detectWebGPU() {
+      if (!navigator.gpu) {
+        state.webgpuAvailable = false;
+        textWebGPU.innerText = "WebGPU: Not Supported";
+        dotWebGPU.classList.add("inactive");
+        updateEngineIndicator();
+        return;
+      }
+      try {
+        const adapter = await navigator.gpu.requestAdapter();
+        if (adapter) {
+          state.webgpuAvailable = true;
+          let info = "Ready";
+          if (adapter.info && adapter.info.architecture) {
+            info = adapter.info.architecture;
+          }
+          textWebGPU.innerText = `WebGPU: ${info}`;
+          dotWebGPU.classList.remove("inactive");
+        } else {
+          state.webgpuAvailable = false;
+          textWebGPU.innerText = "WebGPU: Adapter Denied";
+          dotWebGPU.classList.add("inactive");
+        }
+      } catch (err) {
+        state.webgpuAvailable = false;
+        textWebGPU.innerText = "WebGPU: Error";
+        dotWebGPU.classList.add("inactive");
+      }
+      updateEngineIndicator();
+    }
+
+    // 2. Local Ollama Health Check
+    async function checkOllamaHealth() {
+      try {
+        const res = await fetch("/api/health");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ollama && data.ollama.connected) {
+            state.ollamaAvailable = true;
+            state.ollamaModel = data.ollama.model || "Ready";
+            textOllama.innerText = `Ollama: ${state.ollamaModel}`;
+            dotOllama.classList.remove("inactive");
+          } else {
+            state.ollamaAvailable = false;
+            textOllama.innerText = "Ollama: Offline";
+            dotOllama.classList.add("inactive");
+          }
+        } else {
+          state.ollamaAvailable = false;
+          textOllama.innerText = "Ollama: Offline";
+          dotOllama.classList.add("inactive");
+        }
+      } catch {
+        state.ollamaAvailable = false;
+        textOllama.innerText = "Ollama: Disconnected";
+        dotOllama.classList.add("inactive");
+      }
+      updateEngineIndicator();
+      updateModelBadge();
+    }
+
+    // 3. Engine Mode Selection Controller
+    function setEngineMode(mode) {
+      state.engineMode = mode;
+      [btnModeAuto, btnModeWebGPU, btnModeOllama].forEach(b => b.classList.remove("active"));
+      if (mode === "auto") btnModeAuto.classList.add("active");
+      if (mode === "webgpu") btnModeWebGPU.classList.add("active");
+      if (mode === "ollama") btnModeOllama.classList.add("active");
+      updateEngineIndicator();
+    }
+
+    function getCleanWebLLMName() {
+      return state.webllmModel.replace("-q4f16_1-MLC", "").replace("-q4f32_1-MLC", "").replace("-MLC", "");
+    }
+
+    function initModelSelector() {
+      const select = document.getElementById("webllmModelSelect");
+      if (!select) return;
+
+      const savedModel = localStorage.getItem("airgap_webllm_model");
+      if (savedModel) {
+        state.webllmModel = savedModel;
+        select.value = savedModel;
+      } else {
+        select.value = state.webllmModel;
+      }
+
+      select.onchange = (e) => {
+        const newModel = e.target.value;
+        if (newModel && newModel !== state.webllmModel) {
+          state.webllmModel = newModel;
+          state.webllmEngine = null; // Forces re-instantiation of WebLLM with selected model
+          state.webllmLoaded = false;
+          localStorage.setItem("airgap_webllm_model", newModel);
+          updateEngineIndicator();
+          appendAssistantMessage(`_Switched in-browser WebLLM model to **${getCleanWebLLMName()}**. Next WebGPU query will load this model._`, "webgpu");
+        }
+      };
+    }
+
+    function updateModelBadge() {
+      const select = document.getElementById("webllmModelSelect");
+      if (select && select.value !== state.webllmModel) {
+        select.value = state.webllmModel;
+      }
+    }
+
+    function updateEngineIndicator() {
+      const cleanName = getCleanWebLLMName();
+      if (state.engineMode === "ollama") {
+        activeEngineIndicator.innerText = `Engine: Force Ollama (${state.ollamaModel || "Local"})`;
+        activeEngineIndicator.style.color = "var(--color-ollama)";
+      } else if (state.engineMode === "webgpu") {
+        activeEngineIndicator.innerText = `Engine: Force WebGPU (${cleanName})`;
+        activeEngineIndicator.style.color = "var(--color-webgpu)";
+      } else {
+        if (state.webgpuAvailable) {
+          activeEngineIndicator.innerText = `Engine: Auto (WebGPU • ${cleanName})`;
+          activeEngineIndicator.style.color = "var(--color-webgpu)";
+        } else {
+          activeEngineIndicator.innerText = `Engine: Auto (Ollama • ${state.ollamaModel || "Fallback"})`;
+          activeEngineIndicator.style.color = "var(--color-ollama)";
+        }
+      }
+    }
+
+    btnModeAuto.onclick = () => setEngineMode("auto");
+    btnModeWebGPU.onclick = () => setEngineMode("webgpu");
+    btnModeOllama.onclick = () => setEngineMode("ollama");
+
+    // 4. WebLLM Engine Initialization
+    async function initWebLLMEngine(onProgress) {
+      if (state.webllmEngine || !state.webgpuAvailable) return state.webllmEngine;
+
+      modelProgressContainer.style.display = "block";
+      progressStatusText.innerText = `Loading ${state.webllmModel}...`;
+      if (typeof onProgress === "function") {
+        onProgress(`Loading ${state.webllmModel}...`);
+      }
+
+      try {
+        const initProgressCallback = (report) => {
+          progressStatusText.innerText = report.text;
+          const pctMatch = report.text.match(/(\d+)%/);
+          if (pctMatch) {
+            const pct = pctMatch[1];
+            progressBarFill.style.width = `${pct}%`;
+            progressPercent.innerText = `${pct}%`;
+          }
+          if (typeof onProgress === "function") {
+            onProgress(report.text);
+          }
+        };
+
+        state.webllmEngine = await webllm.CreateMLCEngine(state.webllmModel, {
+          initProgressCallback
+        });
+        state.webllmLoaded = true;
+        progressStatusText.innerText = "WebLLM Engine Ready!";
+        progressBarFill.style.width = "100%";
+        progressPercent.innerText = "100%";
+        if (typeof onProgress === "function") {
+          onProgress("WebLLM Engine Ready!");
+        }
+        setTimeout(() => {
+          modelProgressContainer.style.display = "none";
+        }, 1200);
+        return state.webllmEngine;
+      } catch (err) {
+        console.error("WebLLM initialization error:", err);
+        progressStatusText.innerText = `WebLLM Error: ${err.message}. Falling back to Ollama.`;
+        if (typeof onProgress === "function") {
+          onProgress(`WebLLM Error: ${err.message}. Falling back to Ollama.`);
+        }
+        setTimeout(() => {
+          modelProgressContainer.style.display = "none";
+        }, 3000);
+        return null;
+      }
+    }
+
+    // 5. Ingestion & Context Extraction
+    window.loadSampleArticle = function (key = "privacy") {
+      if (sampleArticles[key]) {
+        state.currentHtml = sampleArticles[key];
+        rawHtmlInput.value = state.currentHtml;
+        window.ingestPayload({ html: state.currentHtml, title: "Sample Article" });
+      }
+    };
+
+    window.ingestCurrentContent = async function () {
+      const htmlToIngest = rawHtmlInput.value.trim() || state.currentHtml;
+      if (!htmlToIngest) return;
+      await window.ingestPayload({ html: htmlToIngest });
+    };
+
+    window.ingestTargetUrl = async function () {
+      const urlInput = document.getElementById("targetUrlInput");
+      const url = urlInput ? urlInput.value.trim() : "";
+      if (!url) {
+        alert("Please enter a valid HTTP/HTTPS URL (e.g. https://en.wikipedia.org/wiki/WebGPU)");
+        return;
+      }
+      await window.ingestPayload({ url: url, title: url });
+    };
+
+    window.handleUploadedFile = function (file) {
+      if (!file) return;
+      const fileNameEl = document.getElementById("uploadedFileName");
+      if (fileNameEl) {
+        fileNameEl.innerText = `Loaded: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+        fileNameEl.style.display = "block";
+      }
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const fileContent = e.target.result;
+        rawHtmlInput.value = fileContent;
+        state.currentHtml = fileContent;
+        await window.ingestPayload({ html: fileContent, title: file.name });
+      };
+      reader.readAsText(file);
+    };
+
+    window.ingestPayload = async function (payload) {
+      const docStatusBadge = document.getElementById("docStatusBadge");
+      docStatusBadge.innerText = "Extracting...";
+      docStatusBadge.style.color = "var(--accent-primary)";
+
+      try {
+        const bodyObj = { query: "summary", top_k: 4, ...payload };
+        const res = await fetch("/api/extract-context", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(bodyObj)
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || res.statusText);
+        }
+
+        const data = await res.json();
+        state.extractedContext = data;
+        state.currentHtml = payload.html || payload.url || state.currentHtml;
+
+        extractedPreviewText.value = data.context || "";
+        extractionMeta.style.display = "grid";
+        metaChars.innerText = data.char_count || (data.context ? data.context.length : 0);
+        metaChunks.innerText = (data.chunks && data.chunks.length) || 0;
+        metaTitle.innerText = data.title || payload.title || "Web Document";
+
+        docStatusBadge.innerText = "Indexed & Ready";
+        docStatusBadge.style.color = "var(--color-webgpu)";
+
+        appendAssistantMessage(
+          `Successfully processed document: **"${data.title || 'Untitled'}"**.\n` +
+          `• Extracted length: ${metaChars.innerText} characters.\n` +
+          `• FAISS vector chunks indexed: ${metaChunks.innerText}.\n` +
+          `Ready for questions!`
+        );
+      } catch (err) {
+        console.warn("Backend extract-context failed:", err);
+        docStatusBadge.innerText = "Extraction Error";
+        docStatusBadge.style.color = "#ef4444";
+        appendAssistantMessage(`⚠️ Could not extract document: ${err.message}. If pointing to an external URL, ensure the server can reach it.`);
+      }
+    };
+
+    // 6. Dual Execution Inference Handler
+    window.sendMessage = async function () {
+      const query = userInput.value.trim();
+      if (!query || state.isGenerating) return;
+
+      if (!state.extractedContext) {
+        if (rawHtmlInput.value.trim()) {
+          await window.ingestCurrentContent();
+        } else {
+          appendUserMessage(query);
+          appendAssistantMessage("Please select a sample article, enter a live webpage URL, or upload a document first!");
+          userInput.value = "";
+          return;
+        }
+      }
+
+      userInput.value = "";
+      state.isGenerating = true;
+      btnSend.disabled = true;
+
+      appendUserMessage(query);
+
+      // Determine target engine
+      let useWebGPU = false;
+      if (state.engineMode === "webgpu") {
+        useWebGPU = true;
+      } else if (state.engineMode === "auto" && state.webgpuAvailable) {
+        useWebGPU = true;
+      }
+
+      if (useWebGPU) {
+        try {
+          await runWebGPUInference(query);
+        } catch (err) {
+          console.error("WebGPU inference failed, falling back to Ollama:", err);
+          appendAssistantMessage(`_WebGPU unavailable (${err.message}). Falling back to Local Ollama..._`, "ollama");
+          await runOllamaInference(query);
+        }
+      } else {
+        await runOllamaInference(query);
+      }
+
+      state.isGenerating = false;
+      btnSend.disabled = false;
+    };
+
+    // Path A: WebGPU In-Browser Inference
+    async function runWebGPUInference(query) {
+      // Step 1: Call /api/extract-context to retrieve top-k chunks from the actively indexed document
+      let contextText = "";
+      let chunks = [];
+      try {
+        const extractRes = await fetch("/api/extract-context", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, top_k: 4 })
+        });
+        if (extractRes.ok) {
+          const data = await extractRes.json();
+          contextText = data.context || "";
+          chunks = data.chunks || [];
+        }
+      } catch (e) {
+        console.warn("Could not retrieve context from /api/extract-context, using raw text fallback", e);
+      }
+
+      if (!contextText && state.extractedContext && state.extractedContext.context) {
+        contextText = state.extractedContext.context;
+      }
+
+      // Safe Context Budget: ensure prompt stays safely within WebGPU model context window (4096 tokens)
+      const MAX_CONTEXT_CHARS = 7000; // ~1750 tokens, leaving >2000 tokens for system prompt & generated output
+      if (contextText && contextText.length > MAX_CONTEXT_CHARS) {
+        contextText = contextText.substring(0, MAX_CONTEXT_CHARS) + "\n\n... [Remaining context truncated to fit WebGPU context window]";
+      }
+
+      // Step 2: Create message element immediately so user sees live progress in chat
+      const messageElement = createStreamingMessageElement("webgpu", chunks);
+      const bubble = messageElement.querySelector(".message-bubble");
+      const telemetryTag = messageElement.querySelector(".telemetry-tag");
+      const ttftVal = messageElement.querySelector(".ttft-val");
+      const tpsVal = messageElement.querySelector(".tps-val");
+      bubble.classList.add("typing-cursor");
+      bubble.innerHTML = `<span style="color: var(--text-secondary); font-size: 0.85rem;">⚡ Initializing WebGPU (${state.webllmModel})...</span>`;
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      // Initialize or get WebLLM engine with live status updates
+      const engine = await initWebLLMEngine((progressText) => {
+        bubble.innerHTML = `<span style="color: var(--text-secondary); font-size: 0.85rem;">⚡ <strong>${escapeHtml(progressText)}</strong></span>`;
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      });
+      if (!engine) {
+        throw new Error("Could not initialize WebLLM engine");
+      }
+
+      bubble.innerHTML = `<span style="color: var(--text-muted); font-size: 0.85rem;">⚡ Generating response...</span>`;
+
+      // Step 3: Stream generation with telemetry
+      const systemPrompt = "You are an air-gapped web copilot. Answer the user's question strictly and exclusively using the provided web page context. If the answer cannot be determined from the context, explicitly state that you cannot find it.";
+      const messages = [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Context from webpage:\n${contextText}\n\nQuestion: ${query}` }
+      ];
+
+      const startTime = performance.now();
+      let firstTokenTime = null;
+      let tokenCount = 0;
+
+      const completion = await engine.chat.completions.create({
+        messages,
+        stream: true
+      });
+
+      let fullText = "";
+      for await (const chunk of completion) {
+        const delta = chunk.choices[0]?.delta?.content || "";
+        if (!delta) continue;
+
+        if (firstTokenTime === null) {
+          firstTokenTime = performance.now();
+          const ttft = Math.round(firstTokenTime - startTime);
+          if (ttftVal) ttftVal.innerText = ttft;
+          if (telemetryTag) telemetryTag.style.display = "inline-flex";
+          bubble.innerText = "";
+        }
+
+        tokenCount++;
+        fullText += delta;
+        bubble.innerText = fullText;
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+
+        const elapsedSec = (performance.now() - firstTokenTime) / 1000;
+        if (elapsedSec > 0.05 && tpsVal) {
+          const tps = (tokenCount / elapsedSec).toFixed(1);
+          tpsVal.innerText = tps;
+        }
+      }
+
+      if (firstTokenTime && tpsVal) {
+        const elapsedSec = Math.max(0.01, (performance.now() - firstTokenTime) / 1000);
+        tpsVal.innerText = (tokenCount / elapsedSec).toFixed(1);
+      }
+      bubble.classList.remove("typing-cursor");
+
+      // Agentic Mesh Layer 2: Asynchronous verification (zero initial latency)
+      if (fullText && fullText.trim()) {
+        triggerAnswerVerification(messageElement, query, fullText, contextText);
+      }
+    }
+
+    // Path B: Local Ollama Streaming Inference (SSE)
+    async function runOllamaInference(query) {
+      const messageElement = createStreamingMessageElement("ollama", []);
+      const bubble = messageElement.querySelector(".message-bubble");
+      const telemetryTag = messageElement.querySelector(".telemetry-tag");
+      const ttftVal = messageElement.querySelector(".ttft-val");
+      const tpsVal = messageElement.querySelector(".tps-val");
+      bubble.classList.add("typing-cursor");
+      bubble.innerHTML = `<span style="color: var(--text-secondary); font-size: 0.85rem;">🦙 Contacting local Ollama daemon & generating response...</span>`;
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      const startTime = performance.now();
+      let firstTokenTime = null;
+      let tokenCount = 0;
+      let retrievedOllamaChunks = [];
+      let fullText = "";
+
+      try {
+        const response = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, top_k: 4 })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Ollama stream failed with status ${response.status}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop(); // keep remainder
+
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const dataStr = line.replace("data: ", "").trim();
+              if (dataStr === "[DONE]") break;
+              try {
+                const parsed = JSON.parse(dataStr);
+                if (parsed.token) {
+                  if (firstTokenTime === null) {
+                    firstTokenTime = performance.now();
+                    const ttft = Math.round(firstTokenTime - startTime);
+                    if (ttftVal) ttftVal.innerText = ttft;
+                    if (telemetryTag) telemetryTag.style.display = "inline-flex";
+                    bubble.innerText = "";
+                  }
+
+                  tokenCount++;
+                  fullText += parsed.token;
+                  bubble.innerText = fullText;
+                  chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                  const elapsedSec = (performance.now() - firstTokenTime) / 1000;
+                  if (elapsedSec > 0.05 && tpsVal) {
+                    const tps = (tokenCount / elapsedSec).toFixed(1);
+                    tpsVal.innerText = tps;
+                  }
+                }
+                if (parsed.chunks && parsed.chunks.length > 0) {
+                  retrievedOllamaChunks = parsed.chunks;
+                  renderCitationCards(messageElement, parsed.chunks);
+                }
+              } catch (e) {
+                // Ignore SSE heartbeat or non-json
+              }
+            }
+          }
+        }
+
+        if (firstTokenTime && tpsVal) {
+          const elapsedSec = Math.max(0.01, (performance.now() - firstTokenTime) / 1000);
+          tpsVal.innerText = (tokenCount / elapsedSec).toFixed(1);
+        }
+      } catch (err) {
+        bubble.innerText = `Error contacting local Ollama: ${err.message}. Ensure Ollama is running at http://localhost:11434 with llama3.2.`;
+      } finally {
+        bubble.classList.remove("typing-cursor");
+        // Agentic Mesh Layer 2: Asynchronous verification (zero initial latency)
+        if (fullText && fullText.trim()) {
+          const auditContext = (retrievedOllamaChunks && retrievedOllamaChunks.length > 0)
+            ? retrievedOllamaChunks.map(c => c.text || c).join("\n\n")
+            : (state.extractedContext ? state.extractedContext.context : "");
+          triggerAnswerVerification(messageElement, query, fullText, auditContext);
+        }
+      }
+    }
+
+    // UI Helpers: Message Rendering
+    function appendUserMessage(text) {
+      const row = document.createElement("div");
+      row.className = "message-row user";
+      row.innerHTML = `
+        <div class="message-avatar user">U</div>
+        <div class="message-body">
+          <div class="message-meta"><span>You</span></div>
+          <div class="message-bubble">${escapeHtml(text)}</div>
+        </div>
+      `;
+      chatMessages.appendChild(row);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function appendAssistantMessage(text, engineType = "hybrid") {
+      const row = document.createElement("div");
+      row.className = "message-row";
+      const cleanWebLLM = getCleanWebLLMName();
+      const engineLabel = engineType === "webgpu"
+        ? `WebGPU • ${cleanWebLLM}`
+        : (engineType === "ollama" ? `Ollama • ${state.ollamaModel || "Local"}` : "HYBRID READY");
+      row.innerHTML = `
+        <div class="message-avatar assistant">AI</div>
+        <div class="message-body">
+          <div class="message-meta">
+            <span>Airgap Web Copilot</span>
+            <span class="engine-tag ${engineType}">${engineLabel}</span>
+          </div>
+          <div class="message-bubble">${text}</div>
+        </div>
+      `;
+      chatMessages.appendChild(row);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    function createStreamingMessageElement(engineType, chunks = []) {
+      const row = document.createElement("div");
+      row.className = "message-row";
+      const cleanWebLLM = getCleanWebLLMName();
+      const engineLabel = engineType === "webgpu"
+        ? `WebGPU • ${cleanWebLLM}`
+        : `Ollama • ${state.ollamaModel || "Local"}`;
+      row.innerHTML = `
+        <div class="message-avatar assistant">AI</div>
+        <div class="message-body">
+          <div class="message-meta">
+            <span>Airgap Web Copilot</span>
+            <span class="engine-tag ${engineType}">${engineLabel}</span>
+            <span class="telemetry-tag" style="display: none;">
+              <span>TTFT: <span class="metric-highlight ttft-val">--</span>ms</span>
+              <span>•</span>
+              <span>Speed: <span class="metric-highlight tps-val">--</span> tok/s</span>
+            </span>
+          </div>
+          <div class="message-bubble"></div>
+          <div class="citations-container" style="${chunks.length ? '' : 'display:none;'}">
+            <div class="citations-header">
+              <span class="citations-header-title">🔍 Grounded Context Citations (${chunks.length})</span>
+              <span class="citation-toggle-icon">▶</span>
+            </div>
+            <div class="citation-cards" style="display:none;"></div>
+          </div>
+          <div class="verification-container" style="display:none;">
+            <div class="verification-tag evaluating" title="Click to inspect Groundedness Audit details">
+              <span class="verification-icon">🛡️</span>
+              <span class="verification-label">Agentic Mesh: Auditing faithfulness...</span>
+              <span class="verification-toggle-icon" style="display:none;">▼</span>
+            </div>
+            <div class="verification-details" style="display:none;"></div>
+          </div>
+        </div>
+      `;
+      chatMessages.appendChild(row);
+
+      // Hook click-to-expand for citations drawer (collapsed by default)
+      const cHeader = row.querySelector(".citations-header");
+      const cList = row.querySelector(".citation-cards");
+      if (cHeader && cList) {
+        cHeader.onclick = () => {
+          const isHidden = cList.style.display === "none";
+          cList.style.display = isHidden ? "flex" : "none";
+          const icon = cHeader.querySelector(".citation-toggle-icon");
+          if (icon) icon.textContent = isHidden ? "▼" : "▶";
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        };
+      }
+
+      if (chunks.length > 0) {
+        renderCitationCards(row, chunks);
+      }
+
+      // Hook click-to-expand for verification drawer
+      const vTag = row.querySelector(".verification-tag");
+      const vDetails = row.querySelector(".verification-details");
+      if (vTag && vDetails) {
+        vTag.onclick = () => {
+          if (!vDetails.innerHTML.trim()) return;
+          const isHidden = vDetails.style.display === "none";
+          vDetails.style.display = isHidden ? "block" : "none";
+          const icon = vTag.querySelector(".verification-toggle-icon");
+          if (icon) icon.textContent = isHidden ? "▲" : "▼";
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        };
+      }
+
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+      return row;
+    }
+
+    function renderCitationCards(messageElement, chunks) {
+      const container = messageElement.querySelector(".citations-container");
+      const list = messageElement.querySelector(".citation-cards");
+      const headerTitle = messageElement.querySelector(".citations-header-title");
+      const toggleIcon = messageElement.querySelector(".citation-toggle-icon");
+      if (!container || !list) return;
+      container.style.display = "block";
+      // Keep strictly in collapsed state by default when generated
+      list.style.display = "none";
+      if (toggleIcon) toggleIcon.textContent = "▶";
+      if (headerTitle) {
+        headerTitle.innerText = `🔍 Grounded Context Citations (${chunks.length})`;
+      }
+      list.innerHTML = "";
+      chunks.forEach((chunk, i) => {
+        const score = chunk.score ? (chunk.score * 100).toFixed(1) + "%" : "Matched";
+        const card = document.createElement("div");
+        card.className = "citation-card";
+        card.innerHTML = `
+          <div class="citation-card-header">
+            <span>Chunk #${i + 1}</span>
+            <span class="score-badge">Similarity: ${score}</span>
+          </div>
+          <div>${escapeHtml(chunk.text || chunk)}</div>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    // Agentic Mesh: Asynchronous Judge Verification Trigger
+    async function triggerAnswerVerification(messageElement, query, answer, contextText) {
+      if (!answer || !answer.trim()) return;
+      const verifyContainer = messageElement.querySelector(".verification-container");
+      const verifyTag = messageElement.querySelector(".verification-tag");
+      if (!verifyContainer || !verifyTag) return;
+
+      let auditContext = contextText;
+      if (!auditContext && state.extractedContext && state.extractedContext.context) {
+        auditContext = state.extractedContext.context;
+      }
+      if (!auditContext) return;
+
+      // Show verifying indicator immediately without blocking
+      verifyContainer.style.display = "block";
+      verifyTag.className = "verification-tag evaluating";
+      verifyTag.innerHTML = `
+        <span class="verification-icon spinner">⚙️</span>
+        <span class="verification-label">Agentic Mesh: Auditing faithfulness with Judge...</span>
+        <span class="verification-toggle-icon" style="display:none;">▼</span>
+      `;
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+
+      try {
+        const res = await fetch("/api/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            query: query,
+            context: auditContext,
+            answer: answer,
+            model: state.ollamaModel || null
+          })
+        });
+
+        if (!res.ok) {
+          throw new Error(`Verification endpoint status ${res.status}`);
+        }
+
+        const data = await res.json();
+        renderVerificationResult(messageElement, data);
+      } catch (err) {
+        console.warn("Agentic verification error or timeout:", err);
+        verifyTag.className = "verification-tag inconclusive";
+        verifyTag.innerHTML = `
+          <span class="verification-icon">🛡️</span>
+          <span class="verification-label">Agentic Mesh: Audit Inconclusive (Judge unreachable)</span>
+        `;
+      }
+    }
+
+    // Render LLM-as-a-Judge Audit Result
+    function renderVerificationResult(messageElement, data) {
+      const verifyTag = messageElement.querySelector(".verification-tag");
+      const verifyDetails = messageElement.querySelector(".verification-details");
+      if (!verifyTag || !verifyDetails) return;
+
+      const status = data.status || "inconclusive";
+      const scorePct = Math.round((data.score || 0) * 100);
+      const judgeModel = data.judge_model || "Critic Judge";
+      const supported = data.supported_claims || [];
+      const unsupported = data.unsupported_claims || [];
+
+      if (status === "verified") {
+        verifyTag.className = "verification-tag verified";
+        verifyTag.innerHTML = `
+          <span class="verification-icon">🛡️</span>
+          <span class="verification-label"><strong>Grounded: Verified</strong> (${scorePct}%) • Judge: ${escapeHtml(judgeModel)}</span>
+          <span class="verification-toggle-icon">▼</span>
+        `;
+      } else if (status === "flagged") {
+        verifyTag.className = "verification-tag flagged";
+        verifyTag.innerHTML = `
+          <span class="verification-icon">⚠️</span>
+          <span class="verification-label"><strong>Hallucination Alert: Flagged</strong> (${scorePct}%) • Judge: ${escapeHtml(judgeModel)}</span>
+          <span class="verification-toggle-icon">▼</span>
+        `;
+      } else {
+        verifyTag.className = "verification-tag inconclusive";
+        verifyTag.innerHTML = `
+          <span class="verification-icon">🛡️</span>
+          <span class="verification-label">Agentic Mesh: Inconclusive • ${escapeHtml(data.verdict || "No Judge Available")}</span>
+          <span class="verification-toggle-icon" style="display:none;">▼</span>
+        `;
+      }
+
+      // Populate details drawer
+      let detailsHtml = "";
+      if (data.verdict) {
+        detailsHtml += `<div class="verification-verdict"><strong>Judge Verdict:</strong> ${escapeHtml(data.verdict)}</div>`;
+      }
+
+      let claimsHtml = "";
+      if (supported.length > 0 || unsupported.length > 0) {
+        claimsHtml += `<div class="claims-list">`;
+        supported.forEach(c => {
+          claimsHtml += `
+            <div class="claim-item supported">
+              <span class="claim-badge supported">✓ SUPPORTED</span>
+              <span>${escapeHtml(c)}</span>
+            </div>`;
+        });
+        unsupported.forEach(c => {
+          claimsHtml += `
+            <div class="claim-item unsupported">
+              <span class="claim-badge unsupported">✕ UNVERIFIED</span>
+              <span>${escapeHtml(c)}</span>
+            </div>`;
+        });
+        claimsHtml += `</div>`;
+      }
+
+      verifyDetails.innerHTML = detailsHtml + claimsHtml;
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    window.submitQuickPrompt = function (promptText) {
+      userInput.value = promptText;
+      window.sendMessage();
+    };
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // Tab Switching
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        const tab = btn.dataset.tab;
+        const samplesEl = document.getElementById("contentSamples");
+        const urlEl = document.getElementById("contentUrl");
+        const fileEl = document.getElementById("contentFile");
+        const htmlEl = document.getElementById("contentHtml");
+        const previewEl = document.getElementById("contentPreview");
+
+        if (samplesEl) samplesEl.style.display = tab === "samples" ? "flex" : "none";
+        if (urlEl) urlEl.style.display = tab === "url" ? "flex" : "none";
+        if (fileEl) fileEl.style.display = tab === "file" ? "flex" : "none";
+        if (htmlEl) htmlEl.style.display = tab === "html" ? "flex" : "none";
+        if (previewEl) previewEl.style.display = tab === "preview" ? "flex" : "none";
+      };
+    });
+
+    // Drag and Drop Zone Handling
+    const dropzone = document.getElementById("dropzone");
+    if (dropzone) {
+      dropzone.ondragover = (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = "var(--accent-primary)";
+        dropzone.style.background = "rgba(99, 102, 241, 0.1)";
+      };
+      dropzone.ondragleave = (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = "var(--border-color)";
+        dropzone.style.background = "rgba(0,0,0,0.2)";
+      };
+      dropzone.ondrop = (e) => {
+        e.preventDefault();
+        dropzone.style.borderColor = "var(--border-color)";
+        dropzone.style.background = "rgba(0,0,0,0.2)";
+        if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+          handleUploadedFile(e.dataTransfer.files[0]);
+        }
+      };
+    }
+
+    // Modal handlers
+    window.openOllamaModal = function() {
+      const modal = document.getElementById("ollamaModal");
+      if (modal) modal.style.display = "flex";
+    };
+
+    window.closeOllamaModal = function() {
+      const modal = document.getElementById("ollamaModal");
+      if (modal) modal.style.display = "none";
+    };
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeOllamaModal();
+    });
+
+    // Boot up
+    detectWebGPU();
+    checkOllamaHealth();
+    initModelSelector();
+    updateModelBadge();
+  </script>
+
+  <!-- Ollama Setup Guide Modal -->
+  <div class="modal-overlay" id="ollamaModal" onclick="if(event.target===this) closeOllamaModal()">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>🦙</span>
+          <span>How to Get & Run Local Ollama</span>
+        </div>
+        <button class="modal-close" onclick="closeOllamaModal()" title="Close">&times;</button>
+      </div>
+
+      <p style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5;">
+        Ollama is a lightweight tool that runs open-source LLMs (like Llama 3.2, Gemma 2, and Qwen 2.5) locally on your PC. It enables pure offline execution with <strong>up to 128,000 tokens of context</strong>.
+      </p>
+
+      <div class="setup-step">
+        <div class="setup-step-title">1. Download & Install Ollama</div>
+        <div style="font-size: 0.78rem; color: var(--text-muted); line-height: 1.6;">
+          • <strong>Windows:</strong> Download <a href="https://ollama.com/download/OllamaSetup.exe" target="_blank" style="color: #60a5fa; text-decoration: underline;">OllamaSetup.exe</a> and run installer.<br>
+          • <strong>macOS:</strong> <span style="font-family: var(--font-mono); color: #c7d2fe;">brew install ollama</span> or download from <a href="https://ollama.com/download" target="_blank" style="color: #60a5fa; text-decoration: underline;">ollama.com</a><br>
+          • <strong>Linux:</strong> <span style="font-family: var(--font-mono); color: #c7d2fe;">curl -fsSL https://ollama.com/install.sh | sh</span>
+        </div>
+      </div>
+
+      <div class="setup-step">
+        <div class="setup-step-title">2. Download (Pull) a Model</div>
+        <div style="font-size: 0.78rem; color: var(--text-muted);">
+          Open PowerShell or Terminal and run:
+        </div>
+        <div class="setup-code">ollama pull llama3.2</div>
+        <div style="font-size: 0.72rem; color: var(--text-muted);">
+          Other options: <code style="color: #c7d2fe;">ollama pull gemma2:2b</code> or <code style="color: #c7d2fe;">ollama pull qwen2.5:7b</code>
+        </div>
+      </div>
+
+      <div class="setup-step">
+        <div class="setup-step-title">3. Start the Ollama Service</div>
+        <div style="font-size: 0.78rem; color: var(--text-muted);">
+          Ollama runs automatically in your system tray. If ever stopped, run:
+        </div>
+        <div class="setup-code">ollama serve</div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+        <span style="font-size: 0.75rem; color: var(--text-muted);">Daemon URL: http://localhost:11434</span>
+        <button class="action-btn" onclick="checkOllamaHealth(); closeOllamaModal();" style="padding: 6px 14px; font-size: 0.78rem; width: auto;">
+          🔄 Refresh Status
+        </button>
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>
