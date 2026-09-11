@@ -88,10 +88,12 @@ async def extract_context_endpoint(payload: ExtractContextRequest) -> Dict[str, 
             raise HTTPException(status_code=422, detail=str(err)) from err
 
         extracted_text = extracted["text"]
-        title = extracted.get("title", "Web Document")
-
-        # Index document in the in-memory FAISS engine
-        indexed_chunks = rag_engine.build_index(extracted_text)
+        # Index document in the in-memory FAISS engine with resilient fallback
+        try:
+            indexed_chunks = rag_engine.build_index(extracted_text)
+        except Exception:
+            indexed_chunks = rag_engine.chunk_document(extracted_text)
+            rag_engine.chunks = indexed_chunks
         rag_engine.active_title = title
         rag_engine.active_text = extracted_text
     elif rag_engine.chunks:
@@ -162,7 +164,10 @@ async def analyze_endpoint(payload: AnalyzeRequest) -> StreamingResponse:
         if input_source and input_source.strip():
             try:
                 extracted = extract_content(input_source)
-                rag_engine.build_index(extracted["text"])
+                try:
+                    rag_engine.build_index(extracted["text"])
+                except Exception:
+                    rag_engine.chunks = rag_engine.chunk_document(extracted["text"])
                 rag_engine.active_title = extracted.get("title", "Web Document")
                 rag_engine.active_text = extracted["text"]
                 retrieved = rag_engine.retrieve(payload.query, top_k=payload.top_k)

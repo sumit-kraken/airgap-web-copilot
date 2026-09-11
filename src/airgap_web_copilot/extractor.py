@@ -62,6 +62,17 @@ def extract_content(input_data: str) -> Dict[str, Any]:
     if not extracted_text:
         extracted_text = trafilatura.extract(raw_html, output_format="markdown")
 
+    if not extracted_text:
+        extracted_text = trafilatura.extract(raw_html, favor_recall=True)
+
+    # Resilient fallback: clean HTML tags if trafilatura heuristics filtered everything out
+    if not extracted_text or not extracted_text.strip():
+        cleaned = re.sub(r"<(script|style|svg|noscript)[^>]*>.*?</\1>", "", raw_html, flags=re.DOTALL | re.IGNORECASE)
+        cleaned = re.sub(r"<[^>]+>", " ", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()
+        if cleaned:
+            extracted_text = cleaned
+
     if not extracted_text or not extracted_text.strip():
         raise ValueError(
             "Failed to extract readable content from the provided input. "
