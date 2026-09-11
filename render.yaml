@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: airgap-web-copilot
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: oregon
+    plan: starter # Note: Starter (1GB RAM) recommended for PyTorch/FAISS embeddings; free tier has 512MB RAM
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: OLLAMA_HOST
+        sync: false # Set to your remote Ollama endpoint if not using client-side WebGPU
